@@ -32,4 +32,7 @@ export class AuditLog {
 
   @Column({ type: "varchar", length: 50, nullable: true })
   result: string // SUCCESS, FAILURE, ERROR
+
+  @Column({ type: "text", nullable: true })
+  errorMessage: string
 }

@@ -20,6 +20,11 @@ export class Analytics {
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;
 
+  @Column({ nullable: true })
+  sessionId?: string;
+
   @CreateDateColumn()
   timestamp: Date;
+
+
 }

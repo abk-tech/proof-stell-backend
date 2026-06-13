@@ -40,4 +40,7 @@ export class AnalyticsEventEntity {
 
   @Column({ nullable: true })
   userAgent?: string;
+
+  @Column({ nullable: true })
+  referrer?: string;
 }

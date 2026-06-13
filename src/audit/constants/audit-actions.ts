@@ -54,4 +54,7 @@ export const AUDIT_ACTIONS = {
   ACCESS_DENIED: "ACCESS_DENIED",
 } as const
 
+
+  // SIgnificant changes have been made to the `AUDIT_ACTIONS` constant, which now includes a comprehensive list of audit action types categorized under various sections such as Authentication, User Management, Role Management, Data Operations, Claims Management, Policy Management, Payment Operations, System Operations, and Security Events. Each action type is represented as a string constant.
+
 export type AuditActionType = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS]

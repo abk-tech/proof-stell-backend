@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from './services/metrics.service';
 
 @Injectable()
@@ -38,12 +38,33 @@ export class AdminService {
   }
 
   async exportToCsv(type: string, days: number) {
-    // Implementation for CSV export
-    const data = await this.getExportData(type, days);
+    const normalizedType = type?.trim().toLowerCase();
+    const normalizedDays = Number(days);
+
+    if (!normalizedType) {
+      throw new BadRequestException('Export type is required');
+    }
+
+    if (!['users', 'games'].includes(normalizedType)) {
+      throw new BadRequestException(`Export type ${type} not supported`);
+    }
+
+    if (
+      !Number.isInteger(normalizedDays) ||
+      normalizedDays < 1 ||
+      normalizedDays > 365
+    ) {
+      throw new BadRequestException('Export days must be between 1 and 365');
+    }
+
+    const data = await this.getExportData(normalizedType, normalizedDays);
+    const rows = Array.isArray(data) ? data : [];
+
     return {
-      filename: `${type}_export_${new Date().toISOString().split('T')[0]}.csv`,
-      data: this.convertToCSV(data as unknown as Record<string, unknown>[]),
+      filename: `${normalizedType}_export_${new Date().toISOString().split('T')[0]}.csv`,
+      data: this.convertToCSV(rows),
       mimeType: 'text/csv',
+      rowCount: rows.length,
     };
   }
 
