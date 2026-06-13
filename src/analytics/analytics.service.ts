@@ -30,7 +30,7 @@ export class AnalyticsService {
     @InjectRepository(AnalyticsEventEntity)
     private analyticsRepo: Repository<AnalyticsEventEntity>,
   @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  private readonly logger = new Logger(AnalyticsService.name),
+  private readonly logger = new Logger(AnalyticsService.name), // ← wrong pattern
   ) {}
 
   async logEvent(dto: CreateAnalyticsDto): Promise<void> {
@@ -43,7 +43,7 @@ export class AnalyticsService {
     return this.analyticsRepo
       .createQueryBuilder('ae')
       .select(['ae.id', 'ae.event', 'ae.timestamp', 'ae.userId'])
-  .orderBy('ae.timestamp', 'DESC')
+  .orderBy('ae.timestamp', 'DESC') //ehnacement needed
   .limit(100)
   .getMany();
   }
