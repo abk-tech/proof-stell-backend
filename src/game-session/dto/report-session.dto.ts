@@ -43,6 +43,7 @@ export class ReportSessionDto {
 
   @IsNumber()
   @Min(0)
+  @Max(1000000) // Prevent absurd score spoofing
   score: number;
 
   @IsNumber()
@@ -60,6 +61,9 @@ export class ReportSessionDto {
   @IsObject()
   metadata?: Record<string, any>;
 
+  @IsUUID()
+  sessionId: string;
+
   @IsString()
-  sessionHash: string; // Client-generated hash for integrity
+  signature: string; // HMAC-SHA256 signature
 }
