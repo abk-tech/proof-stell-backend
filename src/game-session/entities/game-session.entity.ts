@@ -36,8 +36,11 @@ export class GameSession {
   @Column('jsonb', { nullable: true })
   metadata: Record<string, any>;
 
-  @Column('varchar', { length: 64 })
-  sessionHash: string; // For integrity verification
+  @Column('varchar', { length: 64, nullable: true })
+  nonce: string; // Cryptographically random string for server-side HMAC
+
+  @Column({ type: 'timestamp', nullable: true })
+  nonceUsedAt: Date;
 
   @Column('boolean', { default: false })
   isVerified: boolean;
