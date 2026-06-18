@@ -20,6 +20,34 @@ export class UserService {
     private readonly userRepository: Repository<User>,
   ) {}
 
+  /**
+   * Helper utility method to fetch a full, safe, complete view 
+   * of a user record explicitly matching all ReadUserDto surface properties.
+   */
+  private async findCompleteUserForDto(id: string): Promise<User | null> {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id',
+        'user.email',
+        'user.username',
+        'user.displayName',
+        'user.firstName',
+        'user.lastName',
+        'user.isActive',
+        'user.isEmailVerified',
+        'user.gamesPlayed',
+        'user.totalScore',
+        'user.highestScore',
+        'user.currentStreak',
+        'user.longestStreak',
+        'user.createdAt',
+        'user.updatedAt',
+      ])
+      .where('user.id = :id', { id })
+      .getOne();
+  }
+
   async create(createUserDto: CreateUserDto): Promise<ReadUserDto> {
     // Query only id/email/username to avoid loading the full user entity (large fields/relations)
     const existingUser = await this.userRepository
@@ -43,7 +71,14 @@ export class UserService {
     const user = this.userRepository.create(createUserDto);
     const savedUser = await this.userRepository.save(user);
 
-    return plainToClass(ReadUserDto, savedUser, {
+    // FIX: Instead of mapping the shallow entity returned by save(),
+    // re-query the full record to guarantee all database defaults, hooks, and timestamps are populated.
+    const completeUser = await this.findCompleteUserForDto(savedUser.id);
+    if (!completeUser) {
+      throw new NotFoundException(`User record assembly failed for ID ${savedUser.id}`);
+    }
+
+    return plainToInstance(ReadUserDto, completeUser, {
       excludeExtraneousValues: true,
     });
   }
@@ -65,22 +100,21 @@ export class UserService {
       .getMany();
 
     return users.map((user) =>
-      plainToClass(ReadUserDto, user, {
+      plainToInstance(ReadUserDto, user, {
         excludeExtraneousValues: true,
       }),
     );
   }
 
   async findOne(id: string): Promise<ReadUserDto> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-    });
+    // FIX: Optimized query selection path to pull complete fields needed for a standalone look
+    const user = await this.findCompleteUserForDto(id);
 
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    return plainToClass(ReadUserDto, user, {
+    return plainToInstance(ReadUserDto, user, {
       excludeExtraneousValues: true,
     });
   }
@@ -117,10 +151,17 @@ export class UserService {
   }
 
   async findByVerificationToken(token: string): Promise<User | null> {
-    // Only need id and email for token verification paths
+    // FIX: Added 'user.emailVerificationExpires' to the selection array. 
+    // This allows AuthService.verifyEmail() to perform accurate token expiration validation checks.
     return this.userRepository
       .createQueryBuilder('user')
-      .select(['user.id', 'user.email', 'user.emailVerificationToken'])
+      .select([
+        'user.id', 
+        'user.email', 
+        'user.isEmailVerified',
+        'user.emailVerificationToken',
+        'user.emailVerificationExpires'
+      ])
       .where('user.emailVerificationToken = :token', { token })
       .getOne();
   }
@@ -167,9 +208,15 @@ export class UserService {
     }
 
     Object.assign(user, updateUserDto);
-    const updatedUser = await this.userRepository.save(user);
+    await this.userRepository.save(user);
 
-    return plainToClass(ReadUserDto, updatedUser, {
+    // FIX: Explicitly fetch the fully aggregated profile after mutating modifications
+    const completeUser = await this.findCompleteUserForDto(id);
+    if (!completeUser) {
+      throw new NotFoundException(`User with ID ${id} disappeared during sync update processing`);
+    }
+
+    return plainToInstance(ReadUserDto, completeUser, {
       excludeExtraneousValues: true,
     });
   }
@@ -269,11 +316,4 @@ export class UserService {
 
     await this.userRepository.save(user);
   }
-}
-function plainToClass<T, V>(
-  cls: new (...args: any[]) => T,
-  plain: V,
-  options: { excludeExtraneousValues: boolean },
-): T {
-  return plainToInstance(cls, plain, options);
 }

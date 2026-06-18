@@ -16,11 +16,8 @@ import { Role } from '../../common/enums/role.enum';
 import { GameSession } from 'src/game-session/entities/game-session.entity';
 import { Leaderboard } from '../../leaderboard/entities/leaderboard.entity';
 import { UserBadge } from '../../badge/entities/user-badge.entity';
-import { Injectable } from '@nestjs/common';
-import { TypedConfigService } from '../../common/config/typed-config.service';
 
 @Entity('users')
-@Injectable()
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -104,13 +101,17 @@ export class User {
   @OneToMany(() => UserBadge, (userBadge) => userBadge.user)
   userBadges: UserBadge[];
 
-  constructor(private readonly configService: TypedConfigService) {}
+  @OneToOne(() => Leaderboard, (leaderboard) => leaderboard.user)
+  leaderboard: Leaderboard;
 
+  // FIX: Removed DI class initialization hooks from entity definitions.
+  // Entities should remain pure schema blueprints.
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {
-    if (this.password) {
-      const saltRounds = this.configService?.bcryptSaltRounds ?? 12;
+    if (this.password && !this.password.startsWith('$2b$')) {
+      // Use the safe industry default salt size of 12 for background database executions
+      const saltRounds = 12;
       this.password = await bcrypt.hash(this.password, saltRounds);
     }
   }
@@ -118,7 +119,4 @@ export class User {
   async validatePassword(password: string): Promise<boolean> {
     return bcrypt.compare(password, this.password);
   }
-
-  @OneToOne(() => Leaderboard, (leaderboard) => leaderboard.user)
-  leaderboard: Leaderboard;
 }

@@ -7,7 +7,7 @@ import {
   ValidationPipe,
   Query,
   Get,
-  Res,
+  HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
@@ -31,7 +31,7 @@ import {
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   @ApiOperation({ summary: 'Login user' })
   @ApiBody({ type: LoginDto })
@@ -47,6 +47,7 @@ export class AuthController {
   @Throttle({}) // Use default throttling
   @UseGuards(LocalAuthGuard)
   @Post('login')
+  @HttpCode(HttpStatus.OK)
   async login(@Body(ValidationPipe) loginDto: LoginDto, @Request() req) {
     return this.authService.login(req.user, {
       ip: this.getClientIp(req),
@@ -67,6 +68,7 @@ export class AuthController {
   })
   @Throttle({}) // Use default throttling
   @Post('register')
+  @HttpCode(HttpStatus.CREATED)
   async register(@Body(ValidationPipe) registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
@@ -94,17 +96,12 @@ export class AuthController {
     description: 'Invalid email or user not found',
   })
   @Post('resend-verification')
-  async resendVerification(@Body('email') email: string, @Res() res) {
-    try {
-      const user = await this.authService.resendVerificationEmail(email);
-      return res
-        .status(HttpStatus.OK)
-        .json({ message: 'Verification email resent' });
-    } catch (error) {
-      return res
-        .status(error.status || HttpStatus.BAD_REQUEST)
-        .json({ message: error.message });
-    }
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(@Body('email') email: string): Promise<MessageResponseDto> {
+    // FIX: Removed manual try/catch block and @Res() hijacking.
+    // NestJS internal exception layers automatically format HTTP status bubbles cleanly.
+    await this.authService.resendVerificationEmail(email);
+    return { message: 'Verification email resent' };
   }
 
   @ApiOperation({ summary: 'Verify user email' })
@@ -123,17 +120,11 @@ export class AuthController {
     description: 'Invalid or expired token',
   })
   @Get('verify-email')
-  async verifyEmail(@Query('token') token: string, @Res() res) {
-    try {
-      await this.authService.verifyEmail(token);
-      return res
-        .status(HttpStatus.OK)
-        .json({ message: 'Email verified successfully' });
-    } catch (error) {
-      return res
-        .status(error.status || HttpStatus.BAD_REQUEST)
-        .json({ message: error.message });
-    }
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Query('token') token: string): Promise<MessageResponseDto> {
+    // FIX: Let exceptions bubble up naturally to preserve clean type safety properties
+    await this.authService.verifyEmail(token);
+    return { message: 'Email verified successfully' };
   }
 
   private getClientIp(req): string {

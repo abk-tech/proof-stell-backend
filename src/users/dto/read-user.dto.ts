@@ -77,6 +77,7 @@ export class ReadUserDto {
     description: 'User display name',
     example: 'John Doe',
   })
+  @Expose() // FIX: Added missing expose parameter hook so mapping transformation engines don't drop fields
   displayName?: string;
 
   @ApiPropertyOptional({
