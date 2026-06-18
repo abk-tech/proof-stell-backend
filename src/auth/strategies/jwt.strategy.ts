@@ -1,28 +1,37 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import { UserService } from 'src/users/providers/users.service';
+import { TypedConfigService } from 'src/common/config/typed-config.service';
+import { AuthTokenService } from '../providers/auth-token.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    configService: ConfigService,
-    private userService: UserService,
+    configService: TypedConfigService,
+    private readonly userService: UserService,
+    private readonly authTokenService: AuthTokenService,
   ) {
-    // 👇 Call super() with a config object using configService directly
-    const jwtSecret = configService.get<string>('JWT_SECRET');
+    const jwtSecret = configService.jwtSecret;
     if (!jwtSecret) {
-      throw new Error('JWT_SECRET is not defined in environment variables');
+      throw new Error('JWT secret is not configured');
     }
+
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
+      issuer: configService.jwtIssuer,
+      audience: configService.jwtAudience,
+      passReqToCallback: true,
     });
   }
 
-  async validate(payload: any) {
+  async validate(req: Request, payload: any) {
+    const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+    await this.authTokenService.assertTokenIsActive(payload, token);
+
     const user = await this.userService.findOne(payload.sub);
     if (!user) {
       throw new UnauthorizedException('User not found');

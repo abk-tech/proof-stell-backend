@@ -5,6 +5,10 @@ export default registerAs('app', () => ({
   nodeEnv: process.env.NODE_ENV || 'development',
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
+  jwtIssuer: process.env.JWT_ISSUER || 'proof-stell-backend',
+  jwtAudience: process.env.JWT_AUDIENCE || 'proof-stell-client',
+  jwtAccessTtl: process.env.JWT_ACCESS_TTL || '15m',
+  jwtRefreshTtl: process.env.JWT_REFRESH_TTL || '7d',
   bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10),
   leaderboardRecalculationStrategy:
     process.env.LEADERBOARD_RECALCULATION_STRATEGY || 'batch',

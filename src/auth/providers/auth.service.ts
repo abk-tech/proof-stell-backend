@@ -9,7 +9,6 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { plainToClass } from 'class-transformer';
 import { ReadUserDto } from 'src/users/dto/read-user.dto';
 import { UserService } from 'src/users/providers/users.service';
@@ -23,6 +22,7 @@ import { AnalyticsEvent } from 'src/analytics/analytics-event.enum';
 import { CacheService } from 'src/cache/cache.service';
 import { TypedConfigService } from 'src/common/config/typed-config.service';
 import { createHash } from 'crypto';
+import { AuthTokenService } from './auth-token.service';
 
 interface LoginContext {
   ip?: string;
@@ -37,11 +37,10 @@ interface LockoutMetadata {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  private readonly jwtExpiresIn = '24h';
 
   constructor(
     private userService: UserService,
-    private jwtService: JwtService,
+    private readonly authTokenService: AuthTokenService,
     private readonly hashingService: HashingService,
     private readonly mailService: MailService,
     private readonly cacheService: CacheService,
@@ -105,12 +104,6 @@ export class AuthService {
   }
 
   async login(user: any, context?: LoginContext) {
-    const payload = {
-      email: user.email,
-      sub: user.id,
-      role: user.role,
-    };
-
     // Update last login
     await this.userService.updateLastLogin(user.id);
 
@@ -122,11 +115,19 @@ export class AuthService {
     }
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: this.authTokenService.signAccessToken({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      }),
       user: plainToClass(ReadUserDto, user, {
         excludeExtraneousValues: true,
       }),
     };
+  }
+
+  async logout(accessToken: string): Promise<void> {
+    await this.authTokenService.revokeAccessToken(accessToken);
   }
 
   async register(

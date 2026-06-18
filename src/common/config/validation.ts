@@ -1,12 +1,20 @@
 import * as Joi from 'joi';
 
+const jwtTtl = Joi.string()
+  .pattern(/^\d+(ms|s|m|h|d)$/)
+  .message('must be a duration like 15m, 24h, or 7d');
+
 export const validationSchema = Joi.object({
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
     .default('development'),
   PORT: Joi.number().default(3000),
   DATABASE_URL: Joi.string().required(),
-  JWT_SECRET: Joi.string().required(),
+  JWT_SECRET: Joi.string().min(32).required(),
+  JWT_ISSUER: Joi.string().default('proof-stell-backend'),
+  JWT_AUDIENCE: Joi.string().default('proof-stell-client'),
+  JWT_ACCESS_TTL: jwtTtl.default('15m'),
+  JWT_REFRESH_TTL: jwtTtl.default('7d'),
   BCRYPT_SALT_ROUNDS: Joi.number().default(12),
   LEADERBOARD_RECALCULATION_STRATEGY: Joi.string().default('batch'),
   REDIS_HOST: Joi.string().default('localhost'),

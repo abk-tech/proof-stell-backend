@@ -13,7 +13,6 @@ import { validationSchema } from 'src/common/config/validation';
 describe('AuthService', () => {
   let service: AuthService;
   let userService: UserService;
-  let jwtService: JwtService;
   let cacheStore: Map<string, { value: unknown; expiresAt?: number }>;
 
   const mockUserService = {
@@ -25,8 +24,9 @@ describe('AuthService', () => {
     update: jest.fn(),
   };
 
-  const mockJwtService = {
-    sign: jest.fn(),
+  const mockAuthTokenService = {
+    signAccessToken: jest.fn(),
+    revokeAccessToken: jest.fn(),
   };
 
   const mockMailService = {
@@ -106,7 +106,11 @@ describe('AuthService', () => {
         },
         {
           provide: JwtService,
-          useValue: mockJwtService,
+          useValue: {},
+        },
+        {
+          provide: AuthTokenService,
+          useValue: mockAuthTokenService,
         },
         {
           provide: MailService,
@@ -133,7 +137,6 @@ describe('AuthService', () => {
 
     service = module.get<AuthService>(AuthService);
     userService = module.get<UserService>(UserService);
-    jwtService = module.get<JwtService>(JwtService);
   });
 
   afterEach(() => {
@@ -287,7 +290,7 @@ describe('AuthService', () => {
       };
 
       const mockToken = 'jwt.token.here';
-      mockJwtService.sign.mockReturnValue(mockToken);
+      mockAuthTokenService.signAccessToken.mockReturnValue(mockToken);
       mockUserService.updateLastLogin.mockResolvedValue(undefined);
 
       const result = await service.login(mockUser);
@@ -296,6 +299,19 @@ describe('AuthService', () => {
       expect(result.access_token).toBe(mockToken);
       expect(result.user).toBeDefined();
       expect(mockUserService.updateLastLogin).toHaveBeenCalledWith(mockUser.id);
+      expect(mockAuthTokenService.signAccessToken).toHaveBeenCalledWith({
+        id: mockUser.id,
+        email: mockUser.email,
+        role: mockUser.role,
+      });
+    });
+
+    it('should revoke the current access token on logout', async () => {
+      await service.logout('jwt.token.here');
+
+      expect(mockAuthTokenService.revokeAccessToken).toHaveBeenCalledWith(
+        'jwt.token.here',
+      );
     });
   });
 
@@ -564,7 +580,7 @@ describe('AuthService', () => {
         const { error } = validationSchema.validate({
           NODE_ENV: 'test',
           DATABASE_URL: 'postgres://localhost/test',
-          JWT_SECRET: 'secret',
+          JWT_SECRET: 'a'.repeat(32),
           AUTH_MAX_FAILED_ATTEMPTS: 0,
           AUTH_LOCKOUT_DURATION_SECONDS: -1,
           AUTH_ATTEMPT_WINDOW_SECONDS: 'abc',
@@ -580,7 +596,7 @@ describe('AuthService', () => {
         const { value, error } = validationSchema.validate({
           NODE_ENV: 'test',
           DATABASE_URL: 'postgres://localhost/test',
-          JWT_SECRET: 'secret',
+          JWT_SECRET: 'a'.repeat(32),
           STARKNET_PRIVATE_KEY: 'private',
           STARKNET_ACCOUNT_ADDRESS: 'account',
           MINT_CONTRACT_ADDRESS: 'mint',
@@ -590,6 +606,10 @@ describe('AuthService', () => {
         expect(value.AUTH_MAX_FAILED_ATTEMPTS).toBe(5);
         expect(value.AUTH_LOCKOUT_DURATION_SECONDS).toBe(900);
         expect(value.AUTH_ATTEMPT_WINDOW_SECONDS).toBe(900);
+        expect(value.JWT_ISSUER).toBe('proof-stell-backend');
+        expect(value.JWT_AUDIENCE).toBe('proof-stell-client');
+        expect(value.JWT_ACCESS_TTL).toBe('15m');
+        expect(value.JWT_REFRESH_TTL).toBe('7d');
       });
     });
 
