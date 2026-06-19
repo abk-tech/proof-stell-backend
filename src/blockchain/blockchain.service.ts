@@ -22,6 +22,14 @@ export class BlockchainService {
     this.account = new Account(this.provider, accountAddress, privateKey);
   }
 
+  async checkHealth(): Promise<void> {
+    try {
+      await this.provider.getBlockNumber();
+    } catch {
+      throw new Error('Blockchain provider is unavailable');
+    }
+  }
+
   async sendMintTx(userId: number): Promise<{ transaction_hash: string }> {
     const contractAddress = this.configService.mintContractAddress;
     const tx = await this.account.execute({

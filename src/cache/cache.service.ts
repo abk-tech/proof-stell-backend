@@ -49,6 +49,24 @@ export class CacheService {
     this.logger.debug(`Cache reset called (no-op in cache-manager v6+)`);
   }
 
+  async ping(): Promise<void> {
+    const redisClient = this.getRedisClient();
+
+    if (!redisClient?.ping) {
+      throw new Error('Redis client is unavailable');
+    }
+
+    try {
+      const response = await redisClient.ping();
+      if (typeof response === 'string' && response.toUpperCase() === 'PONG') {
+        return;
+      }
+      throw new Error('Redis ping returned an unexpected response');
+    } catch {
+      throw new Error('Redis ping failed');
+    }
+  }
+
   async del(key: string): Promise<void> {
     await this.cacheManager.del(key);
     const redisClient = this.getRedisClient();

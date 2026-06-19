@@ -14,6 +14,11 @@ export default registerAs('app', () => ({
     process.env.LEADERBOARD_RECALCULATION_STRATEGY || 'batch',
   redisHost: process.env.REDIS_HOST || 'localhost',
   redisPort: parseInt(process.env.REDIS_PORT || '6379', 10),
+  mailHost: process.env.MAIL_HOST,
+  mailPort: parseInt(process.env.MAIL_PORT || '587', 10),
+  mailUser: process.env.MAIL_USER,
+  mailPass: process.env.MAIL_PASS,
+  mailFrom: process.env.MAIL_FROM,
   authMaxFailedAttempts: parseInt(
     process.env.AUTH_MAX_FAILED_ATTEMPTS || '5',
     10,

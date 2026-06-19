@@ -14,6 +14,11 @@ export interface AppConfig {
   leaderboardRecalculationStrategy: string;
   redisHost: string;
   redisPort: number;
+  mailHost: string;
+  mailPort: number;
+  mailUser: string;
+  mailPass: string;
+  mailFrom: string;
   authMaxFailedAttempts: number;
   authLockoutDurationSeconds: number;
   authAttemptWindowSeconds: number;
@@ -53,6 +58,11 @@ export class TypedConfigService {
       ),
       redisHost: this.configService.get<string>('app.redisHost', 'localhost'),
       redisPort: this.configService.get<number>('app.redisPort', 6379),
+      mailHost: this.configService.get<string>('app.mailHost'),
+      mailPort: this.configService.get<number>('app.mailPort', 587),
+      mailUser: this.configService.get<string>('app.mailUser'),
+      mailPass: this.configService.get<string>('app.mailPass'),
+      mailFrom: this.configService.get<string>('app.mailFrom'),
       authMaxFailedAttempts: this.configService.get<number>(
         'app.authMaxFailedAttempts',
         5,
@@ -114,6 +124,21 @@ export class TypedConfigService {
   }
   get redisPort() {
     return this.app.redisPort;
+  }
+  get mailHost() {
+    return this.app.mailHost;
+  }
+  get mailPort() {
+    return this.app.mailPort;
+  }
+  get mailUser() {
+    return this.app.mailUser;
+  }
+  get mailPass() {
+    return this.app.mailPass;
+  }
+  get mailFrom() {
+    return this.app.mailFrom;
   }
   get authMaxFailedAttempts() {
     return this.app.authMaxFailedAttempts;

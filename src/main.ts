@@ -11,6 +11,7 @@ import * as express from 'express';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import * as requestId from 'express-request-id';
 import { LoggingInterceptor } from './logging/logging.interceptor';
+import { HealthService } from './health/health.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -79,6 +80,17 @@ async function bootstrap() {
 
   // Serve normalized avatar files only from the public avatar directory.
   app.use('/avatars', express.static(join(process.cwd(), 'public', 'avatars')));
+
+  const healthService = app.get(HealthService);
+  try {
+    await healthService.assertStartupDependencies();
+  } catch (error) {
+    const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+    const reason = error instanceof Error ? error.message : 'unknown error';
+    logger.error(`Startup dependency validation failed: ${reason}`);
+    await app.close();
+    throw error;
+  }
 
   await app.listen(configService.port);
 }

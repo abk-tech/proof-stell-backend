@@ -10,15 +10,15 @@ import { MailController } from './mail.controller';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         transport: {
-          host: config.get('MAIL_HOST'),
-          port: config.get('MAIL_PORT'),
+          host: config.get('app.mailHost'),
+          port: config.get('app.mailPort'),
           auth: {
-            user: config.get('MAIL_USER'),
-            pass: config.get('MAIL_PASS'),
+            user: config.get('app.mailUser'),
+            pass: config.get('app.mailPass'),
           },
         },
         defaults: {
-          from: config.get('MAIL_FROM'),
+          from: config.get('app.mailFrom'),
         },
       }),
     }),

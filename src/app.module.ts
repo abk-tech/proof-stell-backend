@@ -30,6 +30,7 @@ import { ClsModule, ClsService } from 'nestjs-cls';
 import { LoggingModule } from './logging/logging.module';
 import { CacheModule } from './cache/cache.module';
 import { ProtectedModule } from './protected/protected.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { ProtectedModule } from './protected/protected.module';
     AdminModule,
     LoggingModule,
     CacheModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [

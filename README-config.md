@@ -130,6 +130,11 @@ this.configService.newFeatureFlag;
 | `LEADERBOARD_RECALCULATION_STRATEGY` | Strategy for recomputing leaderboard scores                   |
 | `REDIS_HOST`                         | Redis cache host                                              |
 | `REDIS_PORT`                         | Redis cache port                                              |
+| `MAIL_HOST`                          | SMTP server host                                              |
+| `MAIL_PORT`                          | SMTP server port                                              |
+| `MAIL_USER`                          | SMTP username                                                 |
+| `MAIL_PASS`                          | SMTP password or API key                                      |
+| `MAIL_FROM`                          | Default sender identity                                       |
 | `STARKNET_PRIVATE_KEY`               | StarkNet signer private key                                   |
 | `STARKNET_ACCOUNT_ADDRESS`           | StarkNet account address                                      |
 | `MINT_CONTRACT_ADDRESS`              | Smart contract address for minting                            |
@@ -177,5 +182,4 @@ This system provides:
 * 📦 **Scalability** → Works across monorepos & microservices
 
 ---
-
 
