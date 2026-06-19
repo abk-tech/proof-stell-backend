@@ -3,9 +3,9 @@ import { MailerService } from '@nestjs-modules/mailer';
 
 @Injectable()
 export class MailService {
-  constructor(private mailerService: MailerService) {}
+  constructor(private readonly mailerService: MailerService) {}
 
-  async sendTestEmail(to: string) {
+  async sendTestEmail(to: string): Promise<void> {
     await this.mailerService.sendMail({
       to,
       subject: 'Test Email from Stark Insured',
@@ -17,11 +17,11 @@ export class MailService {
     to: string,
     username: string,
     verificationUrl: string,
-  ) {
+  ): Promise<void> {
     await this.mailerService.sendMail({
       to,
       subject: 'Verify your email address',
-      template: 'verify-email',
+      template: 'verify-email', // References your configured template (e.g., verify-email.hbs)
       context: {
         username,
         verificationUrl,

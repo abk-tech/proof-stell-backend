@@ -9,6 +9,8 @@ import { AnalyticsModule } from 'src/analytics/analytics.module';
 import { AuthController } from './controllers/auth.controller';
 import { AuthService } from './providers/auth.service';
 import { RolesGuard } from 'src/common/guards/roles.guard';
+import { CacheModule } from 'src/cache/cache.module';
+import { TypedConfigService } from 'src/common/config/typed-config.service';
 
 @Module({
   imports: [
@@ -16,13 +18,16 @@ import { RolesGuard } from 'src/common/guards/roles.guard';
     UserModule,
     PassportModule,
     AnalyticsModule,
+    CacheModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+        secret: configService.get<string>('app.jwtSecret'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d',
+          issuer: configService.get<string>('app.jwtIssuer'),
+          audience: configService.get<string>('app.jwtAudience'),
+          expiresIn: configService.get<string>('app.jwtAccessTtl'),
         },
       }),
     }),

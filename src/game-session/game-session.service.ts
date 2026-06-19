@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,6 +10,7 @@ import { Repository, DataSource } from 'typeorm';
 import { GameSession } from './entities/game-session.entity';
 import { InputEvent } from './entities/input-event.entity';
 import { ReportSessionDto } from './dto/report-session.dto';
+import { StartSessionDto } from './dto/start-session.dto';
 import * as crypto from 'crypto';
 
 export interface SessionAnalytics {
@@ -30,6 +32,18 @@ export class GameSessionService {
     private dataSource: DataSource,
   ) {}
 
+  async startSession(userId: string, dto: StartSessionDto): Promise<{ sessionId: string; nonce: string }> {
+    const nonce = crypto.randomBytes(32).toString('hex');
+    const gameSession = this.gameSessionRepository.create({
+      userId,
+      challengeId: dto.challengeId,
+      nonce,
+      isVerified: false,
+    });
+    const savedSession = await this.gameSessionRepository.save(gameSession);
+    return { sessionId: savedSession.id, nonce };
+  }
+
   async reportSession(
     userId: string,
     reportSessionDto: ReportSessionDto,
@@ -39,22 +53,30 @@ export class GameSessionService {
     await queryRunner.startTransaction();
 
     try {
-      // Verify session hash integrity
-      const calculatedHash = this.calculateSessionHash(reportSessionDto);
-      if (calculatedHash !== reportSessionDto.sessionHash) {
+      const gameSession = await queryRunner.manager.findOne(GameSession, {
+        where: { id: reportSessionDto.sessionId, userId },
+      });
+
+      if (!gameSession) {
+        throw new NotFoundException('Session not found or does not belong to you');
+      }
+
+      if (gameSession.nonceUsedAt) {
+        throw new BadRequestException('Session has already been reported');
+      }
+
+      // Verify session HMAC integrity
+      const calculatedHash = this.calculateSessionHash(gameSession.nonce, reportSessionDto);
+      if (calculatedHash !== reportSessionDto.signature) {
         throw new BadRequestException('Session integrity check failed');
       }
 
-      // Create game session
-      const gameSession = queryRunner.manager.create(GameSession, {
-        userId,
-        challengeId: reportSessionDto.challengeId,
-        score: reportSessionDto.score,
-        duration: reportSessionDto.duration,
-        metadata: reportSessionDto.metadata,
-        sessionHash: reportSessionDto.sessionHash,
-        isVerified: true,
-      });
+      // Update game session
+      gameSession.score = reportSessionDto.score;
+      gameSession.duration = reportSessionDto.duration;
+      gameSession.metadata = reportSessionDto.metadata;
+      gameSession.isVerified = true;
+      gameSession.nonceUsedAt = new Date();
 
       const savedSession = await queryRunner.manager.save(
         GameSession,
@@ -102,9 +124,14 @@ export class GameSessionService {
 
   async findSessionsByUser(
     userId: string,
+    requestingUser: { id: string; role: string },
     limit: number = 50,
     offset: number = 0,
   ): Promise<{ sessions: GameSession[]; total: number }> {
+    if (requestingUser.id !== userId && requestingUser.role !== 'admin') {
+      throw new ForbiddenException('You can only access your own sessions');
+    }
+
     // Avoid eager loading of large relations by default. Load only summary fields for listing.
     const [sessions, total] = await this.gameSessionRepository
       .createQueryBuilder('gs')
@@ -169,7 +196,7 @@ export class GameSessionService {
     return analytics as SessionAnalytics;
   }
 
-  private calculateSessionHash(sessionData: ReportSessionDto): string {
+  private calculateSessionHash(nonce: string, sessionData: ReportSessionDto): string {
     const dataToHash = {
       challengeId: sessionData.challengeId,
       score: sessionData.score,
@@ -180,9 +207,11 @@ export class GameSessionService {
         sessionData.inputs[sessionData.inputs.length - 1]?.timestamp || 0,
     };
 
+    const serverSecret = process.env.SESSION_HMAC_SECRET || 'default-dev-secret';
+
     return crypto
-      .createHash('sha256')
-      .update(JSON.stringify(dataToHash))
+      .createHmac('sha256', serverSecret)
+      .update(nonce + JSON.stringify(dataToHash))
       .digest('hex');
   }
 
