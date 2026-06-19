@@ -6,6 +6,10 @@ export interface AppConfig {
   nodeEnv: string;
   databaseUrl: string;
   jwtSecret: string;
+  jwtIssuer: string;
+  jwtAudience: string;
+  jwtAccessTtl: string;
+  jwtRefreshTtl: string;
   bcryptSaltRounds: number;
   leaderboardRecalculationStrategy: string;
   redisHost: string;
@@ -29,6 +33,16 @@ export class TypedConfigService {
       nodeEnv: this.configService.get<string>('app.nodeEnv'),
       databaseUrl: this.configService.get<string>('app.databaseUrl'),
       jwtSecret: this.configService.get<string>('app.jwtSecret'),
+      jwtIssuer: this.configService.get<string>(
+        'app.jwtIssuer',
+        'proof-stell-backend',
+      ),
+      jwtAudience: this.configService.get<string>(
+        'app.jwtAudience',
+        'proof-stell-client',
+      ),
+      jwtAccessTtl: this.configService.get<string>('app.jwtAccessTtl', '15m'),
+      jwtRefreshTtl: this.configService.get<string>('app.jwtRefreshTtl', '7d'),
       bcryptSaltRounds: this.configService.get<number>(
         'app.bcryptSaltRounds',
         12,
@@ -76,6 +90,18 @@ export class TypedConfigService {
   }
   get jwtSecret() {
     return this.app.jwtSecret;
+  }
+  get jwtIssuer() {
+    return this.app.jwtIssuer;
+  }
+  get jwtAudience() {
+    return this.app.jwtAudience;
+  }
+  get jwtAccessTtl() {
+    return this.app.jwtAccessTtl;
+  }
+  get jwtRefreshTtl() {
+    return this.app.jwtRefreshTtl;
   }
   get bcryptSaltRounds() {
     return this.app.bcryptSaltRounds;

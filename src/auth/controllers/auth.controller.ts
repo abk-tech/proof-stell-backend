@@ -9,6 +9,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Headers,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -20,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { AuthService } from '../providers/auth.service';
 import { LocalAuthGuard } from 'src/common/guards/local-auth.guard';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { LoginDto } from '../dto/login.dto';
 import { RegisterDto } from '../dto/register.dto';
 import {
@@ -53,6 +55,22 @@ export class AuthController {
       ip: this.getClientIp(req),
       userAgent: req.get?.('user-agent'),
     });
+  }
+
+  @ApiOperation({ summary: 'Logout user' })
+  @ApiResponse({
+    status: 200,
+    description: 'User logged out successfully',
+    type: MessageResponseDto,
+  })
+  @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @Headers('authorization') authorization?: string,
+  ): Promise<MessageResponseDto> {
+    await this.authService.logout(this.extractBearerToken(authorization));
+    return { message: 'Logged out successfully' };
   }
 
   @ApiOperation({ summary: 'Register new user' })
@@ -136,5 +154,10 @@ export class AuthController {
       return forwardedFor[0].split(',')[0].trim();
     }
     return req.ip || req.socket?.remoteAddress || 'unknown';
+  }
+
+  private extractBearerToken(authorization?: string): string {
+    const [type, token] = authorization?.split(' ') ?? [];
+    return type === 'Bearer' ? token : '';
   }
 }
