@@ -1,23 +1,16 @@
-/* eslint-disable prettier/prettier */
 import {
   Injectable,
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  Inject,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-import { Logger } from 'winston';
-import { ClsService } from 'nestjs-cls';
+import { LoggingService } from './logging.service';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  constructor(
-    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
-    private readonly cls: ClsService,
-  ) {}
+  constructor(private readonly loggingService: LoggingService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest();
@@ -31,15 +24,14 @@ export class LoggingInterceptor implements NestInterceptor {
         const duration = Date.now() - now;
 
         const userId = user ? user.id : 'anonymous';
-        const session = this.cls.get('session');
+        const route = req.route?.path || url;
 
-        this.logger.info('HTTP Request', {
+        this.loggingService.info('HTTP Request', {
           method,
-          url,
+          route,
           statusCode,
-          duration: `${duration}ms`,
+          duration,
           userId,
-          session,
           ip: this.getClientIp(req),
           userAgent: req.headers?.['user-agent'],
           body: this.sanitizeRequestBody(req),

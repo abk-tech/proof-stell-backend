@@ -1,36 +1,27 @@
-/* eslint-disable prettier/prettier */
 import { Test, TestingModule } from '@nestjs/testing';
 import { ExecutionContext, CallHandler } from '@nestjs/common';
 import { LoggingInterceptor } from './logging.interceptor';
-import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-import { ClsService } from 'nestjs-cls';
+import { LoggingService } from './logging.service';
 import { of } from 'rxjs';
 
 describe('LoggingInterceptor', () => {
   let interceptor: LoggingInterceptor;
-  let mockLogger: any;
-  let mockClsService: any;
+  let mockLoggingService: any;
 
   beforeEach(async () => {
-    mockLogger = {
+    mockLoggingService = {
       info: jest.fn(),
       error: jest.fn(),
-    };
-
-    mockClsService = {
-      get: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LoggingInterceptor,
         {
-          provide: WINSTON_MODULE_PROVIDER,
-          useValue: mockLogger,
-        },
-        {
-          provide: ClsService,
-          useValue: mockClsService,
+          provide: LoggingService,
+          useValue: mockLoggingService,
         },
       ],
     }).compile();
@@ -42,10 +33,11 @@ describe('LoggingInterceptor', () => {
     expect(interceptor).toBeDefined();
   });
 
-  it('should log HTTP requests', (done) => {
+  it('should log HTTP requests with correlation context', (done) => {
     const mockRequest = {
       method: 'GET',
       url: '/test',
+      route: { path: '/test' },
       body: { test: 'data' },
       user: { id: 'user123' },
       headers: { 'user-agent': 'jest' },
@@ -67,18 +59,15 @@ describe('LoggingInterceptor', () => {
       handle: () => of('test response'),
     } as CallHandler;
 
-    mockClsService.get.mockReturnValue('session123');
-
     interceptor
       .intercept(mockExecutionContext, mockCallHandler)
       .subscribe(() => {
-        expect(mockLogger.info).toHaveBeenCalledWith('HTTP Request', {
+        expect(mockLoggingService.info).toHaveBeenCalledWith('HTTP Request', {
           method: 'GET',
-          url: '/test',
+          route: '/test',
           statusCode: 200,
-          duration: expect.stringMatching(/\d+ms/),
+          duration: expect.any(Number),
           userId: 'user123',
-          session: 'session123',
           ip: '127.0.0.1',
           userAgent: 'jest',
           body: { test: 'data' },
@@ -115,13 +104,12 @@ describe('LoggingInterceptor', () => {
     interceptor
       .intercept(mockExecutionContext, mockCallHandler)
       .subscribe(() => {
-        expect(mockLogger.info).toHaveBeenCalledWith('HTTP Request', {
+        expect(mockLoggingService.info).toHaveBeenCalledWith('HTTP Request', {
           method: 'POST',
-          url: '/api/test',
+          route: '/api/test',
           statusCode: 201,
-          duration: expect.stringMatching(/\d+ms/),
+          duration: expect.any(Number),
           userId: 'anonymous',
-          session: undefined,
           ip: '127.0.0.1',
           userAgent: undefined,
           body: {},
@@ -157,13 +145,56 @@ describe('LoggingInterceptor', () => {
     interceptor
       .intercept(mockExecutionContext, mockCallHandler)
       .subscribe(() => {
-        expect(mockLogger.info).toHaveBeenCalledWith(
+        expect(mockLoggingService.info).toHaveBeenCalledWith(
           'HTTP Request',
           expect.objectContaining({
             ip: '203.0.113.10',
             body: '[REDACTED]',
           }),
         );
+        done();
+      });
+  });
+
+  it('should log with correlation ID context from LoggingService', (done) => {
+    const mockRequest = {
+      method: 'GET',
+      url: '/api/v1/users',
+      route: { path: '/api/v1/users' },
+      body: {},
+      user: { id: 'corr-user-456' },
+      headers: {},
+      ip: '10.0.0.1',
+    };
+
+    const mockResponse = {
+      statusCode: 200,
+    };
+
+    const mockExecutionContext = {
+      switchToHttp: () => ({
+        getRequest: () => mockRequest,
+        getResponse: () => mockResponse,
+      }),
+    } as ExecutionContext;
+
+    const mockCallHandler = {
+      handle: () => of('test response'),
+    } as CallHandler;
+
+    interceptor
+      .intercept(mockExecutionContext, mockCallHandler)
+      .subscribe(() => {
+        const callArgs = mockLoggingService.info.mock.calls[0];
+        expect(callArgs[0]).toBe('HTTP Request');
+        expect(callArgs[1]).toEqual(
+          expect.objectContaining({
+            method: 'GET',
+            route: '/api/v1/users',
+            userId: 'corr-user-456',
+          }),
+        );
+        expect(callArgs[1].duration).toBeGreaterThanOrEqual(0);
         done();
       });
   });

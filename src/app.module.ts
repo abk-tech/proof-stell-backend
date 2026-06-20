@@ -46,8 +46,9 @@ import { TranslationModule } from './translation';
       middleware: {
         mount: true,
         setup: (cls, req) => {
-          cls.set('requestId', req.headers['x-request-id']);
+          cls.set('requestId', req.headers['x-request-id'] || req.id);
           cls.set('user', req.user);
+          cls.set('route', req.route?.path || req.url);
         },
       },
     }),

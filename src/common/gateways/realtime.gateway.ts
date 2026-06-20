@@ -8,8 +8,9 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards, Logger } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from './guards/ws-jwt.guard';
+import { LoggingService } from '../../logging/logging.service';
 import { LeaderboardUpdateDto } from './dto/leaderboard-update.dto';
 import { GameStateChangeDto } from './dto/game-state-change.dto';
 import { NotificationDto } from './dto/notification.dto';
@@ -22,7 +23,8 @@ export class RealtimeGateway
   @WebSocketServer()
   server: Server;
 
-  private readonly logger = new Logger(RealtimeGateway.name);
+  constructor(private readonly loggingService: LoggingService) {}
+
   // Track connected users for demonstration
   private connectedUsers: Map<string, string> = new Map();
 
@@ -31,15 +33,35 @@ export class RealtimeGateway
     try {
       const user = (client as any).user;
       if (!user || !user.sub) {
-        this.logger.warn(`Connection attempt without valid user payload.`);
+        this.loggingService.warn(
+          'Connection attempt without valid user payload.',
+          {
+            module: 'realtime',
+            action: 'connection',
+            metadata: { socketId: client.id },
+          },
+        );
         client.disconnect(true);
         return;
       }
       client.join(`user:${user.sub}`);
       this.connectedUsers.set(client.id, user.sub);
-      this.logger.log(`User ${user.sub} connected (socket: ${client.id})`);
+      this.loggingService.info(`User ${user.sub} connected`, {
+        userId: user.sub,
+        module: 'realtime',
+        action: 'connection',
+        metadata: { socketId: client.id },
+      });
     } catch (err) {
-      this.logger.error(`Error in handleConnection: ${err}`);
+      this.loggingService.error(
+        'Error in handleConnection',
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          module: 'realtime',
+          action: 'connection',
+          metadata: { socketId: client.id },
+        },
+      );
       client.disconnect(true);
     }
   }
@@ -47,10 +69,19 @@ export class RealtimeGateway
   async handleDisconnect(client: Socket) {
     const userId = this.connectedUsers.get(client.id);
     if (userId) {
-      this.logger.log(`User ${userId} disconnected (socket: ${client.id})`);
+      this.loggingService.info(`User ${userId} disconnected`, {
+        userId,
+        module: 'realtime',
+        action: 'disconnection',
+        metadata: { socketId: client.id },
+      });
       this.connectedUsers.delete(client.id);
     } else {
-      this.logger.log(`Unknown user disconnected (socket: ${client.id})`);
+      this.loggingService.info('Unknown user disconnected', {
+        module: 'realtime',
+        action: 'disconnection',
+        metadata: { socketId: client.id },
+      });
     }
   }
 
@@ -71,7 +102,14 @@ export class RealtimeGateway
       client.join(`leaderboard:${data.leaderboardId}`);
       return { event: 'subscribed', leaderboardId: data.leaderboardId };
     } catch (err) {
-      this.logger.error(`Error in leaderboard:subscribe: ${err}`);
+      this.loggingService.error(
+        'Error in leaderboard:subscribe',
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          module: 'realtime',
+          action: 'leaderboard:subscribe',
+        },
+      );
       return { error: 'Subscription failed' };
     }
   }
@@ -89,7 +127,14 @@ export class RealtimeGateway
       client.join(`game:${data.gameId}`);
       return { event: 'subscribed', gameId: data.gameId };
     } catch (err) {
-      this.logger.error(`Error in game:subscribe: ${err}`);
+      this.loggingService.error(
+        'Error in game:subscribe',
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          module: 'realtime',
+          action: 'game:subscribe',
+        },
+      );
       return { error: 'Subscription failed' };
     }
   }
@@ -114,8 +159,16 @@ export class RealtimeGateway
     this.server
       .to(`leaderboard:${leaderboardId}`)
       .emit('leaderboard:update', updateData);
-    this.logger.log(
-      `Emitted leaderboard update for ${leaderboardId} (${updateType}) to ${this.server.sockets.adapter.rooms.get(`leaderboard:${leaderboardId}`)?.size || 0} clients`,
+    const clientCount =
+      this.server.sockets.adapter.rooms.get(`leaderboard:${leaderboardId}`)
+        ?.size || 0;
+    this.loggingService.info(
+      `Emitted leaderboard update for ${leaderboardId} (${updateType})`,
+      {
+        module: 'realtime',
+        action: 'leaderboard:emit',
+        metadata: { leaderboardId, updateType, clientCount },
+      },
     );
   }
 
@@ -183,7 +236,14 @@ export class RealtimeGateway
       if (Array.isArray(err) && err[0] instanceof ValidationError) {
         return { error: 'Validation failed', details: err };
       }
-      this.logger.error(`Error in notification:send: ${err}`);
+      this.loggingService.error(
+        'Error in notification:send',
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          module: 'realtime',
+          action: 'notification:send',
+        },
+      );
       return { error: 'Notification failed' };
     }
   }

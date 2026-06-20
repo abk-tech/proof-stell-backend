@@ -10,6 +10,13 @@ export interface LogContext {
   sessionId?: string;
   module?: string;
   action?: string;
+  route?: string;
+  method?: string;
+  statusCode?: number;
+  duration?: number;
+  ip?: string;
+  userAgent?: string;
+  body?: unknown;
   metadata?: Record<string, any>;
 }
 
@@ -24,11 +31,13 @@ export class LoggingService {
     const requestId = this.cls.get('requestId') || context?.requestId;
     const user = this.cls.get('user');
     const sessionId = this.cls.get('sessionId') || context?.sessionId;
+    const route = this.cls.get('route') || context?.route;
 
     return {
       requestId,
       userId: user?.id || context?.userId,
       sessionId,
+      route,
       ...context,
     };
   }

@@ -11,6 +11,7 @@ import * as express from 'express';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import * as requestId from 'express-request-id';
 import { LoggingInterceptor } from './logging/logging.interceptor';
+import { LoggingService } from './logging/logging.service';
 import { HealthService } from './health/health.service';
 
 async function bootstrap() {
@@ -37,8 +38,8 @@ async function bootstrap() {
   );
   // Global exception filters
   app.useGlobalFilters(
-    new HttpExceptionFilter(app.get(WINSTON_MODULE_NEST_PROVIDER)),
-    new ThrottlerExceptionFilter(),
+    new HttpExceptionFilter(app.get(LoggingService)),
+    new ThrottlerExceptionFilter(app.get(LoggingService)),
   );
 
   // Global logging interceptor
