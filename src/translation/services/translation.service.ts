@@ -5,8 +5,9 @@ import {
   ConflictException,
   Logger,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
-import type { Language, Translation } from '../entities';
+import { Language, Translation } from '../entities';
 import type {
   CreateLanguageDto,
   UpdateLanguageDto,
@@ -27,10 +28,18 @@ export class TranslationService {
   private translationCache = new Map<string, TranslationMap>();
   private cacheExpiry = new Map<string, number>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  /**
+   * Cached default-language code (resolved lazily on first access).
+   * `undefined` means "not yet resolved"; `null` means "DB lookup confirmed there is no default".
+   * Invalidated by createLanguage/updateLanguage/deleteLanguage and clearAllCache.
+   */
+  private defaultLanguageCode: string | null | undefined = undefined;
 
   constructor(
-    private languageRepository: Repository<Language>,
-    private translationRepository: Repository<Translation>,
+    @InjectRepository(Language)
+    private readonly languageRepository: Repository<Language>,
+    @InjectRepository(Translation)
+    private readonly translationRepository: Repository<Translation>,
   ) {}
 
   // Language Management
@@ -57,6 +66,9 @@ export class TranslationService {
 
     const language = this.languageRepository.create(createLanguageDto);
     const savedLanguage = await this.languageRepository.save(language);
+
+    // The default-language cache may now be stale.
+    this.defaultLanguageCode = undefined;
 
     this.logger.log(`Created language: ${savedLanguage.code}`);
     return savedLanguage;
@@ -107,6 +119,8 @@ export class TranslationService {
 
     // Clear cache for this language
     this.clearLanguageCache(language.code);
+    // Default-language cache may be stale if isDefault changed.
+    this.defaultLanguageCode = undefined;
 
     this.logger.log(`Updated language: ${updatedLanguage.code}`);
     return updatedLanguage;
@@ -125,6 +139,9 @@ export class TranslationService {
 
     await this.languageRepository.delete(id);
     this.clearLanguageCache(language.code);
+
+    // Default-language cache may be stale.
+    this.defaultLanguageCode = undefined;
 
     this.logger.log(`Deleted language: ${language.code}`);
   }
@@ -229,18 +246,26 @@ export class TranslationService {
       });
 
       if (!translationEntity) {
-        // Try to get from default language
-        const defaultLanguage = await this.languageRepository.findOne({
-          where: { isDefault: true },
-        });
+        // Try to get from the configured default language (data-driven, cached).
+        const defaultCode = await this.getDefaultLanguageCode();
 
-        if (defaultLanguage && defaultLanguage.code !== languageCode) {
-          const defaultTranslation = await this.translationRepository.findOne({
-            where: { key, languageId: defaultLanguage.id },
-          });
+        if (defaultCode && defaultCode !== languageCode) {
+          try {
+            const defaultLanguage = await this.findLanguageByCode(defaultCode);
+            const defaultTranslation = await this.translationRepository.findOne(
+              {
+                where: { key, languageId: defaultLanguage.id },
+              },
+            );
 
-          if (defaultTranslation) {
-            translation = defaultTranslation.value;
+            if (defaultTranslation) {
+              translation = defaultTranslation.value;
+            }
+          } catch {
+            // The cached default points to a missing or inactive language.
+            // Don't propagate — degrade gracefully to the explicit defaultValue
+            // (or the raw key) so missing/inactive admin data can't take down a
+            // request that already had a valid locale.
           }
         }
 
@@ -412,6 +437,70 @@ export class TranslationService {
   async clearAllCache(): Promise<void> {
     this.translationCache.clear();
     this.cacheExpiry.clear();
+    this.defaultLanguageCode = undefined;
     this.logger.log('Translation cache cleared');
+  }
+
+  /**
+   * Returns the configured default language code, caching the lookup after
+   * the first call. The cache is invalidated by language mutations and
+   * {@link clearAllCache}. Returns `null` if no language is marked as default.
+   *
+   * This replaces previously hardcoded `'en'` fallbacks and makes the
+   * fallback behavior consistent across the module.
+   */
+  async getDefaultLanguageCode(): Promise<string | null> {
+    if (this.defaultLanguageCode !== undefined) {
+      return this.defaultLanguageCode;
+    }
+
+    const defaultLanguage = await this.languageRepository.findOne({
+      where: { isDefault: true },
+    });
+
+    this.defaultLanguageCode = defaultLanguage ? defaultLanguage.code : null;
+    return this.defaultLanguageCode;
+  }
+
+  /**
+   * Returns translation keys that exist in the configured default language
+   * but not in the requested language. Useful for auditing translation
+   * coverage for templates, notifications, or any locale gap before launch.
+   *
+   * Returns an empty array if the requested language IS the default, or if
+   * no default language is configured.
+   */
+  async findMissingTranslations(languageCode: string): Promise<string[]> {
+    const targetLanguage = await this.findLanguageByCode(languageCode);
+    const defaultCode = await this.getDefaultLanguageCode();
+
+    if (!defaultCode || defaultCode === targetLanguage.code) {
+      return [];
+    }
+
+    const defaultLanguage = await this.findLanguageByCode(defaultCode);
+
+    const [defaultRows, targetRows] = await Promise.all([
+      this.translationRepository
+        .createQueryBuilder('t')
+        .select(['t.key'])
+        .where('t.languageId = :languageId', {
+          languageId: defaultLanguage.id,
+        })
+        .getRawMany(),
+      this.translationRepository
+        .createQueryBuilder('t')
+        .select(['t.key'])
+        .where('t.languageId = :languageId', {
+          languageId: targetLanguage.id,
+        })
+        .getRawMany(),
+    ]);
+
+    const targetKeys = new Set<string>(targetRows.map((row) => row.key));
+    return defaultRows
+      .map((row) => row.key)
+      .filter((key) => !targetKeys.has(key))
+      .sort();
   }
 }

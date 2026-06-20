@@ -4,7 +4,7 @@ import {
   type ArgumentMetadata,
   BadRequestException,
 } from '@nestjs/common';
-import type { TranslationService } from '../services/translation.service';
+import { TranslationService } from '../services/translation.service';
 
 @Injectable()
 export class LanguageValidationPipe implements PipeTransform {

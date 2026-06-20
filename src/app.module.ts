@@ -11,7 +11,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import configuration from './common/config/configuration';
 import { validationSchema } from './common/config/validation';
 import { TypedConfigService } from './common/config/typed-config.service';
-import { ScheduleModule } from "@nestjs/schedule"; 
+import { ScheduleModule } from "@nestjs/schedule";
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { GameSessionModule } from './game-session/game-session.module';
 import { ChallengeModule } from './challenge/challenge.module';
@@ -31,6 +31,7 @@ import { LoggingModule } from './logging/logging.module';
 import { CacheModule } from './cache/cache.module';
 import { ProtectedModule } from './protected/protected.module';
 import { HealthModule } from './health/health.module';
+import { TranslationModule } from './translation';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { HealthModule } from './health/health.module';
     LoggingModule,
     CacheModule,
     HealthModule,
+    TranslationModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [

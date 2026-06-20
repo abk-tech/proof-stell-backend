@@ -234,4 +234,35 @@ export class TranslationController {
   async clearCache(): Promise<void> {
     return this.translationService.clearAllCache();
   }
+
+  /**
+   * Returns translation keys present in the configured default language but
+   * missing in the requested language. Used to audit translation coverage for
+   * templates, notifications, and other user-facing surfaces.
+   */
+  @Get(':languageCode/missing-translations')
+  @ApiOperation({
+    summary:
+      'List translation keys present in the default language but missing in the given language',
+  })
+  @ApiParam({
+    name: 'languageCode',
+    description: 'Target language code (e.g., es, fr, de)',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Missing keys returned (empty array if none or no default configured)',
+  })
+  @ApiResponse({ status: 404, description: 'Language not found' })
+  async findMissingTranslations(
+    @Param('languageCode') languageCode: string,
+  ): Promise<{ language: string; missingKeys: string[] }> {
+    const missingKeys =
+      await this.translationService.findMissingTranslations(languageCode);
+    return {
+      language: languageCode,
+      missingKeys,
+    };
+  }
 }

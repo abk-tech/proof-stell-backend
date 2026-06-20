@@ -37,12 +37,20 @@ export class TranslationInterceptor implements NestInterceptor {
         await this.translationService.findTranslationsByLanguage(language);
       request.translations = languageTranslations.translations;
     } catch (error) {
-      // If language not found, try default language
-      try {
-        const defaultTranslations =
-          await this.translationService.findTranslationsByLanguage('en');
-        request.translations = defaultTranslations.translations;
-      } catch {
+      // If language not found, fall back to the configured default language.
+      const defaultCode =
+        await this.translationService.getDefaultLanguageCode();
+      if (defaultCode) {
+        try {
+          const defaultTranslations =
+            await this.translationService.findTranslationsByLanguage(
+              defaultCode,
+            );
+          request.translations = defaultTranslations.translations;
+        } catch {
+          request.translations = {};
+        }
+      } else {
         request.translations = {};
       }
     }
