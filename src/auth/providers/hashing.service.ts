@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
-import { TypedConfigService } from '../../common/config/typed-config.service';
 
 @Injectable()
 export class HashingService {
@@ -14,11 +13,9 @@ export class HashingService {
   private readonly minSaltRounds = 10;
   private readonly maxSaltRounds = 15;
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly typedConfigService: TypedConfigService,
-  ) {
-    const configuredRounds = this.typedConfigService.bcryptSaltRounds || 12;
+  constructor(private readonly configService: ConfigService) {
+    const configuredRounds =
+      this.configService.get<number>('app.bcryptSaltRounds', 12) || 12;
 
     // Ensure salt rounds is within secure range
     if (configuredRounds < this.minSaltRounds) {

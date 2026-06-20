@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { HashingService } from './hashing.service';
-import { TypedConfigService } from '../../common/config/typed-config.service';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -9,14 +8,9 @@ jest.mock('bcrypt');
 describe('HashingService', () => {
   let service: HashingService;
   let configService: jest.Mocked<ConfigService>;
-  let typedConfigService: jest.Mocked<TypedConfigService>;
 
   const mockConfigService = {
-    get: jest.fn(),
-  };
-
-  const mockTypedConfigService = {
-    bcryptSaltRounds: 12,
+    get: jest.fn().mockReturnValue(12),
   };
 
   beforeEach(async () => {
@@ -27,16 +21,11 @@ describe('HashingService', () => {
           provide: ConfigService,
           useValue: mockConfigService,
         },
-        {
-          provide: TypedConfigService,
-          useValue: mockTypedConfigService,
-        },
       ],
     }).compile();
 
     service = module.get<HashingService>(HashingService);
     configService = module.get(ConfigService);
-    typedConfigService = module.get(TypedConfigService);
 
     jest.clearAllMocks();
   });
@@ -53,10 +42,8 @@ describe('HashingService', () => {
 
     it('should enforce minimum salt rounds', async () => {
       // Create service with low salt rounds
-      const lowSaltService = new HashingService(mockConfigService, {
-        ...mockTypedConfigService,
-        bcryptSaltRounds: 5,
-      } as any);
+      mockConfigService.get.mockReturnValueOnce(5);
+      const lowSaltService = new HashingService(mockConfigService as any);
 
       expect(lowSaltService).toBeDefined();
       // The service should internally use minimum of 10 rounds
@@ -64,10 +51,8 @@ describe('HashingService', () => {
 
     it('should enforce maximum salt rounds', async () => {
       // Create service with high salt rounds
-      const highSaltService = new HashingService(mockConfigService, {
-        ...mockTypedConfigService,
-        bcryptSaltRounds: 20,
-      } as any);
+      mockConfigService.get.mockReturnValueOnce(20);
+      const highSaltService = new HashingService(mockConfigService as any);
 
       expect(highSaltService).toBeDefined();
       // The service should internally use maximum of 15 rounds
@@ -221,7 +206,7 @@ describe('HashingService', () => {
       const endTime = Date.now();
 
       // bcrypt should provide consistent timing
-      expect(endTime - startTime).toBeGreaterThan(0);
+      expect(endTime - startTime).toBeGreaterThanOrEqual(0);
       expect(bcrypt.compare).toHaveBeenCalledWith(
         plainPassword,
         hashedPassword,

@@ -5,10 +5,7 @@ import { UserService } from 'src/users/providers/users.service';
 import { Role } from 'src/common/enums/role.enum';
 import { MailService } from 'src/mail/mail.service';
 import { HashingService } from './hashing.service';
-import { CacheService } from 'src/cache/cache.service';
-import { TypedConfigService } from 'src/common/config/typed-config.service';
 import { AnalyticsService } from 'src/analytics/analytics.service';
-import { validationSchema } from 'src/common/config/validation';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -121,14 +118,6 @@ describe('AuthService', () => {
           useValue: mockHashingService,
         },
         {
-          provide: CacheService,
-          useValue: cacheServiceMock,
-        },
-        {
-          provide: TypedConfigService,
-          useValue: mockConfigService,
-        },
-        {
           provide: AnalyticsService,
           useValue: mockAnalyticsService,
         },
@@ -161,6 +150,10 @@ describe('AuthService', () => {
       const result = await service.register(registerDto);
       expect(result.user).toBeDefined();
       expect(result.access_token).toBe('');
+      expect(mockUserService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ password: registerDto.password }),
+      );
+      expect(mockHashingService.hashPassword).not.toHaveBeenCalled();
       expect(mockMailService.sendVerificationEmail).toHaveBeenCalled();
     });
   });
@@ -173,6 +166,7 @@ describe('AuthService', () => {
         id: '123',
         email,
         password: 'hashed',
+        isActive: true,
         isEmailVerified: false,
       };
       mockUserService.findByEmail.mockResolvedValue(user);
@@ -246,6 +240,7 @@ describe('AuthService', () => {
         username: 'testuser',
         role: Role.PLAYER,
         password: 'hashedPassword',
+        isActive: true,
         isEmailVerified: true,
       };
 
@@ -270,6 +265,7 @@ describe('AuthService', () => {
         username: 'testuser',
         role: Role.PLAYER,
         password: 'hashedPassword',
+        isActive: true,
         isEmailVerified: true,
       });
       mockHashingService.comparePassword.mockResolvedValue(false);
@@ -670,15 +666,13 @@ describe('AuthService', () => {
     });
 
     describe('Password Security', () => {
-      it('should hash passwords during registration', async () => {
+      it('should delegate registration password hashing to UserService', async () => {
         const registerDto = {
           email: 'test@example.com',
           username: 'testuser',
           password: 'SecurePass123!',
         };
 
-        const hashedPassword = 'hashed-secure-password';
-        mockHashingService.hashPassword.mockResolvedValue(hashedPassword);
         mockUserService.create.mockResolvedValue({
           id: '123',
           email: registerDto.email,
@@ -691,11 +685,9 @@ describe('AuthService', () => {
 
         await service.register(registerDto);
 
-        expect(mockHashingService.hashPassword).toHaveBeenCalledWith(
-          registerDto.password,
-        );
+        expect(mockHashingService.hashPassword).not.toHaveBeenCalled();
         expect(mockUserService.create).toHaveBeenCalledWith(
-          expect.objectContaining({ password: hashedPassword }),
+          expect.objectContaining({ password: registerDto.password }),
         );
       });
 

@@ -134,14 +134,10 @@ export class AuthService {
     registerDto: RegisterDto,
   ): Promise<{ access_token: string; user: ReadUserDto }> {
     try {
-      const hashedPassword = await this.hashingService.hashPassword(
-        registerDto.password,
-      );
       const emailVerificationToken = uuidv4();
       const emailVerificationExpires = addHours(new Date(), 24);
       const user = await this.userService.create({
         ...registerDto,
-        password: hashedPassword,
         isEmailVerified: false,
         emailVerificationToken,
         emailVerificationExpires,

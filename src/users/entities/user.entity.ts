@@ -1,17 +1,13 @@
-/* eslint-disable prettier/prettier */
 import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  BeforeInsert,
-  BeforeUpdate,
   OneToMany,
   OneToOne,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
-import * as bcrypt from 'bcrypt';
 import { Role } from '../../common/enums/role.enum';
 import { GameSession } from 'src/game-session/entities/game-session.entity';
 import { Leaderboard } from '../../leaderboard/entities/leaderboard.entity';
@@ -103,20 +99,4 @@ export class User {
 
   @OneToOne(() => Leaderboard, (leaderboard) => leaderboard.user)
   leaderboard: Leaderboard;
-
-  // FIX: Removed DI class initialization hooks from entity definitions.
-  // Entities should remain pure schema blueprints.
-  @BeforeInsert()
-  @BeforeUpdate()
-  async hashPassword() {
-    if (this.password && !this.password.startsWith('$2b$')) {
-      // Use the safe industry default salt size of 12 for background database executions
-      const saltRounds = 12;
-      this.password = await bcrypt.hash(this.password, saltRounds);
-    }
-  }
-
-  async validatePassword(password: string): Promise<boolean> {
-    return bcrypt.compare(password, this.password);
-  }
 }
