@@ -32,5 +32,6 @@ export const validationSchema = Joi.object({
   STARKNET_PRIVATE_KEY: Joi.string().required(),
   STARKNET_ACCOUNT_ADDRESS: Joi.string().required(),
   MINT_CONTRACT_ADDRESS: Joi.string().required(),
+  DB_SYNCHRONIZE: Joi.string().valid('true', 'false').default('false'),
   // Add more validations as needed
 });
