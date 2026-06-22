@@ -1,4 +1,11 @@
-# Wallet Connection Reliability Module
+# Wallet Module
+
+> Security controls, auth model, and env vars: [SECURITY_CHECKLIST.md](../../SECURITY_CHECKLIST.md) · [RUNBOOK.md](../../RUNBOOK.md)
+> Data flow for wallet transactions: [ARCHITECTURE.md](../../ARCHITECTURE.md#data-flow-wallet-transaction)
+
+---
+
+## Overview
 
 This NestJS module enhances wallet integration logic to gracefully handle edge cases such as dropped connections, rejected transactions, and network switching. It provides an abstraction layer for interacting with different wallet providers (e.g., ArgentX, Braavos) and emits events for critical wallet lifecycle changes.
 

@@ -1,62 +1,69 @@
-# Proof-Stell-Backend Security Audit Report
+# Security Audit Report
 
-**Report Generated:** {{CURRENT_DATE}}
+**Report Generated:** 2025-09-06
+
+> Companion checklist: [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)
+> Architecture context: [ARCHITECTURE.md](ARCHITECTURE.md)
+
+---
 
 ## 1. Executive Summary
 
-This report provides a comprehensive security audit of the Proof-Stell-Backend application, covering code, APIs, data storage, and authentication. The audit identified several areas for improvement, which are detailed in this report. The primary goal is to identify and remediate vulnerabilities to enhance the overall security posture.
+This report covers a security review of the ProofStell backend, including authentication flows, API input handling, data storage, and dependency hygiene. The findings below represent the state identified during the audit. Each item links to the relevant checklist entry where applicable.
+
+---
 
 ## 2. Scope
 
-The audit covers the following areas:
+- **Codebase Analysis:** Static analysis for secrets, dependency vulnerabilities, and code quality.
+- **API Security:** Review of all REST and WebSocket endpoints for common vulnerabilities.
+- **Data Storage:** Review of entity definitions, logging behaviour, and field-level exposure.
+- **Authentication & Authorization:** JWT lifecycle, token revocation, RBAC guard consistency.
 
-- **Codebase Analysis:** Static analysis of the entire codebase for security vulnerabilities, including secret scanning and dependency analysis.
-- **API Security:** Testing of all API endpoints for common vulnerabilities like XSS, SQLi, CSRF, and IDOR.
-- **Data Storage:** Review of data storage mechanisms for sensitive data exposure and misconfigurations.
-- **Authentication & Authorization:** Evaluation of authentication flows, token management, and role-based access control.
+---
 
 ## 3. Methodology
 
-The audit was conducted using a combination of automated tools and manual review:
+- **Automated:** `npm audit` (dependency scan), ESLint security rules.
+- **Manual:** Code review of auth, guard, wallet, and logging paths.
+- **Configuration review:** Env validation schema (`validation.ts`), `main.ts` bootstrap.
 
-- **Automated Scanning:**
-  - **Snyk:** Dependency scanning to identify vulnerable packages.
-  - **SonarQube:** Static code analysis to detect security hotspots and bugs.
-  - **OWASP ZAP:** Dynamic application security testing (DAST) for API endpoints.
-- **Manual Review:**
-  - **Code Review:** Line-by-line inspection of critical code paths, focusing on authentication, authorization, and data handling.
-  - **API Testing:** Manual testing of API endpoints using tools like Postman and Burp Suite.
-  - **Configuration Review:** Inspection of configuration files for security misconfigurations.
+---
 
-## 4. Findings & Recommendations
+## 4. Findings
 
-### 4.1. High-Priority Vulnerabilities
+### 4.1 Resolved / Mitigated
 
-| ID | Vulnerability | Description | Recommendation |
+| ID | Vulnerability | Status | Resolution |
 |---|---|---|---|
-| **VULN-001** | **Hardcoded Secrets in Code** | Hardcoded secrets (API keys, passwords) were found in the codebase, posing a high risk if the code is compromised. | Remove all hardcoded secrets and use environment variables or a secret management service. |
-| **VULN-002** | **SQL Injection (SQLi)** | Potential SQL injection vectors were identified in raw SQL queries, allowing attackers to manipulate database queries. | Use a query builder or ORM to construct all database queries and avoid raw SQL. |
-| **VULN-003** | **Broken Authentication** | JWTs have no expiration, allowing indefinite use of compromised tokens. | Implement JWT expiration and a token revocation mechanism. |
+| **VULN-001** | Hardcoded Secrets | ✅ Resolved | All secrets are loaded via `TypedConfigService`; `JWT_SECRET` min-length enforced at startup. |
+| **VULN-002** | SQL Injection | ✅ Resolved | TypeORM query builder used throughout; no raw SQL string interpolation. |
+| **VULN-003** | Broken Authentication (no JWT expiry) | ✅ Resolved | Access tokens expire at 15 min; refresh at 7 days. Server-side revocation via `JwtSecurityService`. |
+| **VULN-004** | XSS via unvalidated output | ✅ Resolved | Global `ValidationPipe` + `ClassSerializerInterceptor`; no unescaped user input in responses. |
+| **VULN-006** | Debug info in production | ✅ Resolved | Swagger disabled in `production`; `HttpExceptionFilter` suppresses stack traces. |
+| **VULN-007** | Missing security headers | ✅ Resolved | `SecurityHeadersMiddleware` applies CSP, HSTS, X-Frame-Options, X-Content-Type-Options globally. |
 
-### 4.2. Medium-Priority Vulnerabilities
+### 4.2 Open / Needs Verification
 
-| ID | Vulnerability | Description | Recommendation |
+| ID | Vulnerability | Severity | Recommendation |
 |---|---|---|---|
-| **VULN-004** | **Cross-Site Scripting (XSS)** | Some API endpoints return unvalidated user input, which could lead to stored XSS vulnerabilities. | Implement input validation and output encoding for all user-supplied data. |
-| **VULN-005** | **Insecure Direct Object References (IDOR)** | Some endpoints expose internal object IDs, which could be manipulated by attackers to access unauthorized resources. | Replace internal IDs with non-sequential, random identifiers (e.g., UUIDs) in all API responses. |
-| **VULN-006** | **Security Misconfiguration** | Debugging and verbose error messages are enabled in the production environment, which can leak sensitive information. | Disable debugging and verbose error messages in production. |
+| **VULN-005** | IDOR — internal IDs in responses | Medium | Audit all DTO `@Expose()` fields; replace numeric IDs with UUIDs where still exposed. |
+| **VULN-008** | Vulnerable dependencies | Medium | Run `npm audit --audit-level=high` in CI and block on unresolved high/critical findings. |
+| **OPEN-001** | WebSocket auth coverage | Medium | Verify all `@SubscribeMessage` handlers are behind `JwtWsGuard`; unauthenticated events must be explicitly allowlisted. |
+| **OPEN-002** | Wallet signed-message replay | Low | Add a nonce or short-lived timestamp to the signed payload to prevent replay attacks. |
+| **OPEN-003** | Upload path traversal | Low | Confirm `AvatarUploadInterceptor` validates and normalises the stored filename before writing to disk. |
 
-### 4.3. Low-Priority Vulnerabilities
+---
 
-| ID | Vulnerability | Description | Recommendation |
-|---|---|---|---|
-| **VULN-007** | **Lack of Security Headers** | Security headers like `Content-Security-Policy` and `X-Content-Type-Options` are missing, which can expose the application to various attacks. | Implement appropriate security headers in all API responses. |
-| **VULN-008** | **Vulnerable Dependencies** | Several outdated dependencies with known vulnerabilities were identified. | Regularly update all dependencies and use a tool like Snyk to monitor for new vulnerabilities. |
+## 5. Remediation Priority
 
-## 5. Remediation Plan
+1. Resolve **VULN-008** in CI immediately.
+2. Address **OPEN-001** before enabling any public WebSocket endpoint.
+3. Audit **VULN-005** and **OPEN-002** in the next sprint.
+4. **OPEN-003** is low risk given the static-file serving path, but should be confirmed.
 
-A detailed remediation plan with timelines and assigned owners should be created based on this report. High-priority vulnerabilities should be addressed immediately, followed by medium and low-priority issues.
+---
 
 ## 6. Conclusion
 
-The audit identified several critical and high-priority vulnerabilities that require immediate attention. By following the recommendations in this report, the security of the Proof-Stell-Backend can be significantly improved. Regular security audits and continuous monitoring are recommended to maintain a strong security posture.
+The core authentication, input validation, and header hardening controls are in place. The remaining open items are medium/low severity and addressable in normal sprint work. Continuous `npm audit` in CI is the highest-priority unresolved action.

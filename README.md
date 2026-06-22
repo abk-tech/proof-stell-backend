@@ -1,162 +1,94 @@
 # 🖥️ ProofStell Backend API
 
-Backend services for the ProofStell decentralized document verification platform.
+Backend services for the ProofStell decentralized competitive gaming platform — a whack-a-mole game on StarkNet with on-chain leaderboards and wallet-based identity.
 
 ---
 
 ## 🌍 Overview
 
-The backend acts as a bridge between the frontend and the Stellar blockchain.
+The backend is a NestJS REST + WebSocket API that:
 
-It handles:
-
-- Document hashing
-- Smart contract interaction
-- Metadata storage
-- Verification logic
-
----
-
-## 🚀 Core Features
-
-### 📄 Document Processing
-
-- Generate SHA256 hashes from uploaded documents
-- Ensure consistent hashing for verification
+- Manages game sessions, scores, badges, and challenges
+- Integrates with StarkNet smart contracts for minting and on-chain actions
+- Handles JWT-based authentication, role-based access control, and token revocation
+- Provides real-time leaderboard and game-state updates over Socket.IO
+- Emits analytics events to external providers (PostHog, Mixpanel, Plausible, GA)
 
 ---
 
-### 🔗 Blockchain Interaction
+## 📚 Documentation
 
-- Communicate with Soroban smart contracts
-- Register and verify document hashes
-
----
-
-### 🗄️ Metadata Storage
-
-- Store document metadata in PostgreSQL
-- Track issuers, timestamps, and ownership
-
----
-
-### 🔎 Verification Service
-
-- Accept document uploads
-- Return verification results:
-
-  - Verified
-  - Not Found
-  - Revoked
+| Document | Contents |
+|---|---|
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Module map, request lifecycle, cross-module contracts, data flows |
+| **[RUNBOOK.md](RUNBOOK.md)** | Env vars, migrations, observability, scheduled jobs, cache, incident checks |
+| **[README-config.md](README-config.md)** | Centralized config system, `TypedConfigService` usage |
+| **[SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md)** | Auth, API, data-storage, and dependency security checklist |
+| **[SECURITY_AUDIT_REPORT.md](SECURITY_AUDIT_REPORT.md)** | Findings from the last security audit |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Branching strategy, commit conventions, contributor checklist |
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture Summary
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full module map and data flows.
 
 ```
-Frontend (Next.js)
+HTTP / WebSocket Clients
         ↓
-Backend API (NestJS)
-        ↓
-Soroban Smart Contract
-        ↓
-Stellar Network
+NestJS (ThrottlerGuard → AuthGuard → ValidationPipe → Controller → Service)
+        ↓                    ↓                    ↓
+    PostgreSQL            Redis               StarkNet
+    (TypeORM)           (Cache +          (BlockchainService,
+                       Dist. Lock)          MintService,
+                                           WalletProviders)
 ```
+
+Observability: Winston → Loki · Prometheus → Grafana · alert.rules.yml → Alertmanager
 
 ---
 
 ## 🛠️ Tech Stack
 
-- NestJS
-- PostgreSQL
-- Prisma ORM
-- Stellar SDK
-- Multer (file handling)
-- Crypto (SHA256 hashing)
-
----
-
-## 📁 Project Structure
-
-```bash
-src/
-├── documents/
-├── issuers/
-├── verification/
-├── soroban/
-├── prisma/
-└── utils/
-```
-
----
-
-## 🔗 API Endpoints
-
-### Issue Document
-
-```http
-POST /documents/issue
-```
-
----
-
-### Verify Document
-
-```http
-POST /verify
-```
-
----
-
-### Revoke Document
-
-```http
-POST /documents/revoke
-```
+- NestJS · TypeScript
+- PostgreSQL + TypeORM
+- Redis (cache + distributed locks)
+- Socket.IO (real-time gateway)
+- StarkNet SDK · Soroban SDK
+- Passport JWT + bcrypt
+- Winston + Prometheus + Loki
+- Swagger (`/api/docs` in non-production)
 
 ---
 
 ## 🚀 Getting Started
 
-### Install dependencies
-
 ```bash
 npm install
-```
 
-### Run server
+# Copy and fill in required env vars
+cp .env.example .env
 
-```bash
 npm run start:dev
 ```
 
----
-
-## 🔐 Environment Variables
-
-```env
-DATABASE_URL=
-SOROBAN_RPC_URL=
-STELLAR_NETWORK=
-CONTRACT_ADDRESS=
-```
+See [RUNBOOK.md](RUNBOOK.md) for the full environment variable reference and production startup guide.
 
 ---
 
 ## 🔐 Security
 
-- Hash-based verification
-- Input validation
-- Issuer authorization
-- Secure blockchain interaction
+See [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) and [SECURITY_AUDIT_REPORT.md](SECURITY_AUDIT_REPORT.md).
 
----
-
-## 🎯 Goals
-
-- Provide reliable verification services
-- Ensure accurate blockchain interaction
-- Maintain secure document processing
+Key controls:
+- JWT access tokens (15 min) with refresh tokens (7 days) and server-side revocation
+- bcrypt password hashing (12 rounds by default)
+- Global `ThrottlerGuard` (10 req / 60 s per IP); stricter limits on auth endpoints
+- `SecurityHeadersMiddleware` applies CSP, HSTS, X-Frame-Options, etc. globally
+- CORS origins are env-driven (`ALLOWED_ORIGINS`) — no hardcoded values
+- `ValidationPipe` with `whitelist: true` on all endpoints
+- Sensitive fields stripped by `ClassSerializerInterceptor` (`@Exclude`)
+- Logging redacts passwords, tokens, and other PII fields automatically
 
 ---
 
@@ -164,15 +96,12 @@ CONTRACT_ADDRESS=
 
 The translation module provides first-class locale support with consistent fallback behaviour.
 
-- **Default locale:** Configured by marking exactly one language record with `isDefault = true` in the `languages` table. Translation lookups (`TranslationService.getTranslation`) and the interceptor fallback are fully data-driven. `LanguageMiddleware` and `LanguageGuard` still default to `'en'` when no locale signal is present in the request — those are best-effort input fallbacks, not translation fallbacks.
-- **Validation:** Endpoints that explicitly opt in via `LanguageValidationPipe` or `LanguageGuard` reject unknown or inactive locale codes with HTTP 400.
-- **Lenient endpoints:** `TranslationInterceptor` and `LanguageMiddleware` silently fall back to the configured default when an unrecognised locale is requested, so customer-facing flows never show raw keys.
-- **Coverage check:** Call `GET /translations/:languageCode/missing-translations` to identify keys present in the default but missing in a target locale. Use this in CI to catch translation gaps before release.
-- **Adding a new locale:**
-  1. Insert a `languages` row with `code`, `name`, `nativeName`, `isActive=true`.
-  2. Optionally set `isDefault=true` (this unsets any previous default).
-  3. Add translations via `POST /translations` or `POST /translations/bulk`.
+- **Default locale:** Configured by marking exactly one language record with `isDefault = true` in the `languages` table.
+- **Validation:** Endpoints that opt in via `LanguageValidationPipe` or `LanguageGuard` reject unknown or inactive locale codes with HTTP 400.
+- **Lenient endpoints:** `TranslationInterceptor` and `LanguageMiddleware` silently fall back to the configured default.
+- **Coverage check:** `GET /api/v1/translations/:languageCode/missing-translations`
+- **Adding a new locale:** Insert a `languages` row, then add translations via `POST /api/v1/translations/bulk`.
 
-The default-locale lookup is cached in memory and invalidates automatically when any language row is created, updated, or deleted.
+---
 
-**ProofStell Backend — Powering decentralized verification.**
+**ProofStell Backend — Powering decentralized gaming.**

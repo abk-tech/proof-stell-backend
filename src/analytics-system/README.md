@@ -1,5 +1,8 @@
 # Analytics Module
 
+> Configuration reference (env vars, provider keys): [RUNBOOK.md](../../RUNBOOK.md#environment-variables)
+> Module role in overall architecture: [ARCHITECTURE.md](../../ARCHITECTURE.md#module-map)
+
 A comprehensive, standalone analytics module for NestJS applications that supports multiple analytics providers and ensures privacy compliance.
 
 ## Features
