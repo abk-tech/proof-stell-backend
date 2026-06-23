@@ -91,7 +91,7 @@ export class LeaderboardController {
   async getUserLeaderboard(
     @Req() req: RequestWithUser,
   ): Promise<LeaderboardResponseDto> {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const result = await this.leaderboardService.getUserLeaderboard(userId);
     return plainToClass(LeaderboardResponseDto, result, {
       excludeExtraneousValues: true,
@@ -105,7 +105,7 @@ export class LeaderboardController {
     @Req() req: RequestWithUser,
     @Body() createLeaderboardDto: CreateLeaderboardDto,
   ): Promise<LeaderboardResponseDto> {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const result = await this.leaderboardService.submitScore(
       userId,
       createLeaderboardDto,
